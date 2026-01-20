@@ -1,189 +1,691 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="bg">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DualPay Pro</title>
-    
-    <meta name="theme-color" content="#fffbeb">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="icon" type="image/png" id="dynamic-favicon">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#6B7280" />
+  <meta name="description" content="DualPay — калкулатор за ресто в BGN и EUR при фиксиран курс 1.95583." />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;700&family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+  <title>DualPay — Ресто BGN/EUR</title>
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        themeLight: '#fffbeb', // Amber 50
-                        themeMain: '#fcd34d',  // Amber 300
-                        themeDark: '#d97706',  // Amber 600
-                        themeText: '#78350f',  // Amber 900
-                    },
-                    fontFamily: {
-                        'comfortaa': ['Comfortaa', 'cursive'],
-                        'montserrat': ['Montserrat', 'sans-serif'],
-                    }
-                }
+  <!-- Tailwind (CDN, single-file-friendly) -->
+  <script>
+    window.tailwind = {
+      config: {
+        theme: {
+          extend: {
+            fontFamily: {
+              comfortaa: ['Comfortaa', 'system-ui', 'Segoe UI', 'Roboto', 'Arial', 'sans-serif'],
+              montserrat: ['Montserrat', 'system-ui', 'Segoe UI', 'Roboto', 'Arial', 'sans-serif'],
+            },
+            colors: {
+              pastelY: '#FFF4B8',   // пастелно жълто (фон)
+              accentG: '#6B7280',   // сиво (акценти/бутони)
+              tileY:   '#FFF0A8'    // светло жълто (лого плочка)
+            },
+            boxShadow: {
+              deep: '0 24px 60px rgba(0,0,0,0.18), 0 10px 24px rgba(0,0,0,0.12)',
             }
+          }
         }
-    </script>
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
 
-    <style>
-        /* Animation */
-        @keyframes float {
-            0% { transform: translate(0, 0) rotate(0deg); }
-            50% { transform: translate(15px, -15px) rotate(10deg); }
-            100% { transform: translate(0, 0) rotate(0deg); }
-        }
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@500;600;700&family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
 
-        .bg-symbol {
-            position: absolute;
-            color: #f59e0b; /* Amber 500 */
-            opacity: 0.15;
-            font-family: 'Comfortaa', cursive;
-            font-weight: bold;
-            pointer-events: none;
-            user-select: none;
-            z-index: 0;
-            animation: float 10s ease-in-out infinite;
-        }
+  <!-- Will be set dynamically (canvas icon) -->
+  <link id="favicon" rel="icon" href="" />
+  <link id="appleTouch" rel="apple-touch-icon" href="" />
+  <link id="manifestLink" rel="manifest" href="" />
 
-        /* Glassmorphism Panel */
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.65);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            box-shadow: 0 8px 32px 0 rgba(217, 119, 6, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.8);
-        }
+  <style>
+    :root{
+      --rate: 1.95583;
+      --bg: #FFF4B8;
+      --accent: #6B7280;
+      --tile: #FFF0A8;
+      --dueInputBg: #FFFBE0; /* ОПИСАНИЕ: много светъл ванилов жълт */
+    }
 
-        /* Input Styling */
-        .custom-input {
-            transition: all 0.3s ease;
-        }
-        .custom-input:focus {
-            transform: scale(1.02);
-            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.15);
-        }
+    /* Dynamic checkerboard background */
+    .bg-grid {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      user-select: none;
+    }
+    .bg-grid-inner{
+      width: 120%;
+      height: 120%;
+      transform: translate(-10%, -10%);
+      display: grid;
+      grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+      grid-template-rows: repeat(var(--rows), minmax(0, 1fr));
+      gap: 0.55rem;
+      opacity: 1;
+    }
+    .bg-cell{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0.9rem;
+      background: rgba(255,255,255,0.06);
+      backdrop-filter: blur(2px);
+      box-shadow: inset 0 0 0 1px rgba(107,114,128,0.12);
+    }
+    .bg-symbol{
+      font-family: 'Comfortaa', system-ui, sans-serif;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: rgba(107,114,128,0.42); /* доста забележими */
+      text-shadow: 0 6px 18px rgba(0,0,0,0.12);
+      filter: drop-shadow(0 8px 18px rgba(0,0,0,0.10));
+      transform-origin: center;
+      animation: floaty var(--dur) ease-in-out infinite;
+      will-change: transform;
+    }
+    @keyframes floaty{
+      0%{
+        transform: translate(calc(var(--dx) * -0.5), calc(var(--dy) * -0.5))
+                   rotate(calc(var(--rot) * -0.5))
+                   scale(calc(1 - (var(--sc) * 0.45)));
+      }
+      50%{
+        transform: translate(var(--dx), var(--dy))
+                   rotate(var(--rot))
+                   scale(calc(1 + var(--sc)));
+      }
+      100%{
+        transform: translate(calc(var(--dx) * -0.5), calc(var(--dy) * -0.5))
+                   rotate(calc(var(--rot) * -0.5))
+                   scale(calc(1 - (var(--sc) * 0.45)));
+      }
+    }
 
-        body { overscroll-behavior-y: none; }
-    </style>
+    /* Better tap targets + safe area */
+    .safe-bottom { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+    .safe-top    { padding-top:    calc(1rem + env(safe-area-inset-top)); }
+
+    /* Numeric look */
+    input[type="text"], input[type="number"] { font-family: 'Montserrat', system-ui, sans-serif; }
+    .num { font-family: 'Montserrat', system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+
+    /* Reduce motion */
+    @media (prefers-reduced-motion: reduce) {
+      .bg-symbol { animation: none !important; }
+      .trans { transition: none !important; }
+    }
+  </style>
 </head>
-<body class="bg-themeLight h-screen w-screen overflow-hidden flex flex-col justify-center items-center text-themeText font-montserrat relative">
 
-    <div id="bg-container" class="fixed inset-0 w-full h-full overflow-hidden pointer-events-none"></div>
+<body class="min-h-screen bg-[color:var(--bg)] text-slate-800 overflow-x-hidden">
+  <!-- Dynamic background -->
+  <div class="bg-grid" aria-hidden="true">
+    <div id="bgGridInner" class="bg-grid-inner"></div>
+  </div>
 
-    <main class="glass-panel relative z-10 w-[96%] max-w-xl h-auto rounded-[2rem] flex flex-col p-6 sm:p-8 shadow-2xl space-y-6">
-        
-        <header class="flex items-center justify-between">
+  <main class="relative min-h-screen flex items-center justify-center px-4 safe-top safe-bottom">
+    <section class="w-full max-w-md">
+      <!-- App-like window -->
+      <div class="rounded-[2rem] bg-white/35 backdrop-blur-xl shadow-deep border border-white/40 overflow-hidden">
+        <header class="p-5 pb-4">
+          <div class="flex items-center justify-between gap-3">
+            <!-- Logo tile -->
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-gradient-to-br from-amber-300 to-amber-500 rounded-xl flex items-center justify-center shadow text-white font-bold">
-                    €/лв
+              <div class="rounded-2xl bg-[color:var(--tile)] border border-white/40 shadow-sm px-3 py-2">
+                <div class="font-comfortaa text-[color:var(--accent)] text-lg leading-none tracking-tight select-none">
+                  € ⇄ лв
                 </div>
-                <h1 class="font-comfortaa text-2xl font-bold text-themeDark tracking-tight">DualPay</h1>
+              </div>
+              <div>
+                <h1 class="font-comfortaa text-xl tracking-tight">DualPay</h1>
+                <p class="text-sm text-slate-600">Калкулатор за ресто (BGN/EUR)</p>
+              </div>
             </div>
-            <button id="installBtn" class="hidden bg-themeDark text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-lg hover:bg-amber-700 transition">
-                + Инсталирай
+
+            <!-- Install button (appears when available) -->
+            <button id="installBtn"
+              class="hidden shrink-0 rounded-2xl px-3 py-2 bg-[color:var(--accent)] text-white shadow-sm active:scale-[0.99] trans transition"
+              style="min-height:44px"
+              type="button"
+              aria-label="Инсталирай приложението">
+              <span class="font-montserrat text-sm font-semibold">Инсталирай</span>
             </button>
+          </div>
         </header>
 
-        <div class="bg-gradient-to-r from-amber-500 to-orange-500 text-white p-6 rounded-3xl shadow-lg relative overflow-hidden transform transition-all">
-            <div class="absolute -right-6 -top-6 w-24 h-24 bg-white opacity-20 rounded-full blur-xl"></div>
-            
-            <div class="flex justify-between items-start">
-                <span class="text-amber-100 text-xs font-bold uppercase tracking-widest font-comfortaa">Ресто</span>
-                <div class="flex bg-black/20 rounded-lg p-1 backdrop-blur-sm">
-                    <button class="currency-toggle px-3 py-1 rounded-md text-xs font-bold bg-white text-orange-600 shadow-sm transition-all" data-curr="BGN">BGN</button>
-                    <button class="currency-toggle px-3 py-1 rounded-md text-xs font-bold text-amber-100 hover:text-white transition-all" data-curr="EUR">EUR</button>
-                </div>
+        <div class="px-5 pb-5">
+          <!-- Input: Amount due -->
+          <div class="rounded-2xl p-4 bg-white/45 border border-white/50 shadow-sm">
+            <label class="block font-comfortaa text-sm text-slate-700 mb-2" for="dueAmount">
+              Сума за плащане
+            </label>
+
+            <div class="flex gap-3">
+              <div class="flex-1">
+                <input id="dueAmount"
+                  class="w-full rounded-xl px-4 py-3 text-lg num bg-[color:var(--dueInputBg)] border border-white/60 outline-none focus:ring-2 focus:ring-slate-400/40"
+                  inputmode="decimal"
+                  placeholder="0.00"
+                  autocomplete="off"
+                  aria-describedby="dueHint" />
+              </div>
+
+              <div class="w-28">
+                <select id="dueCurrency"
+                  class="w-full rounded-xl px-3 py-3 text-base font-montserrat bg-white/60 border border-white/60 outline-none focus:ring-2 focus:ring-slate-400/40"
+                  aria-label="Валута на сумата за плащане">
+                  <option value="BGN">BGN</option>
+                  <option value="EUR">EUR</option>
+                </select>
+              </div>
             </div>
 
-            <div class="mt-2 text-center">
-                <div class="flex justify-center items-baseline gap-2">
-                    <span id="changeValue" class="text-5xl font-extrabold tracking-tight">0.00</span>
-                    <span id="changeSymbol" class="text-2xl font-comfortaa opacity-90">лв</span>
-                </div>
-                <div class="mt-2 text-amber-100 text-sm font-medium border-t border-white/20 pt-1 inline-block px-4">
-                    или <span id="secondaryValue">0.00 €</span>
-                </div>
+            <p id="dueHint" class="mt-2 text-xs text-slate-600">
+              Полето е с фон „много светъл ванилов жълт“ (примерно #FFFBE0) за ясна визуална йерархия.
+            </p>
+          </div>
+
+          <!-- Paid inputs -->
+          <div class="mt-4 grid grid-cols-1 gap-3">
+            <div class="rounded-2xl p-4 bg-white/35 border border-white/50 shadow-sm">
+              <label class="block font-comfortaa text-sm text-slate-700 mb-2" for="paidBGN">
+                Платено в лв
+              </label>
+              <input id="paidBGN"
+                class="w-full rounded-xl px-4 py-3 text-lg num bg-white/60 border border-white/60 outline-none focus:ring-2 focus:ring-slate-400/40"
+                inputmode="decimal"
+                placeholder="0.00"
+                autocomplete="off" />
             </div>
+
+            <div class="rounded-2xl p-4 bg-white/35 border border-white/50 shadow-sm">
+              <label class="block font-comfortaa text-sm text-slate-700 mb-2" for="paidEUR">
+                Платено в €
+              </label>
+              <input id="paidEUR"
+                class="w-full rounded-xl px-4 py-3 text-lg num bg-white/60 border border-white/60 outline-none focus:ring-2 focus:ring-slate-400/40"
+                inputmode="decimal"
+                placeholder="0.00"
+                autocomplete="off" />
+            </div>
+          </div>
+
+          <!-- Error box -->
+          <div id="errorBox"
+            class="hidden mt-4 rounded-2xl border border-red-200 bg-red-50/90 p-4 shadow-sm">
+            <div class="flex items-start gap-3">
+              <div class="mt-0.5 h-3 w-3 rounded-full bg-red-500"></div>
+              <div>
+                <p class="font-comfortaa text-sm text-red-800">Недостатъчна сума</p>
+                <p id="errorText" class="mt-1 text-sm text-red-700 num"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Change result -->
+          <div id="resultWrap"
+            class="mt-4 rounded-2xl p-4 bg-white/45 border border-white/50 shadow-sm trans transition duration-300 opacity-0 translate-y-2 pointer-events-none">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="font-comfortaa text-sm text-slate-700">Ресто</p>
+                <p id="changePrimary" class="mt-1 text-3xl font-montserrat font-bold num text-slate-900">0.00</p>
+                <p id="changeSecondary" class="mt-1 text-sm text-slate-600 num"></p>
+              </div>
+
+              <!-- Segmented currency toggle -->
+              <div class="rounded-2xl bg-white/60 border border-white/60 p-1 shadow-sm">
+                <div class="grid grid-cols-2 gap-1">
+                  <button id="showBGN"
+                    class="rounded-xl px-3 py-2 text-sm font-montserrat font-semibold trans transition"
+                    type="button" style="min-width:84px; min-height:44px;">
+                    BGN
+                  </button>
+                  <button id="showEUR"
+                    class="rounded-xl px-3 py-2 text-sm font-montserrat font-semibold trans transition"
+                    type="button" style="min-width:84px; min-height:44px;">
+                    EUR
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick help for iOS -->
+          <div id="iosHint"
+            class="hidden mt-4 rounded-2xl border border-slate-200 bg-white/60 p-4 text-sm text-slate-700">
+            <p class="font-comfortaa text-sm">Инсталиране на iPhone/iPad:</p>
+            <ol class="list-decimal ml-5 mt-2 space-y-1">
+              <li>Отвори страницата в Safari.</li>
+              <li>Натисни Share (споделяне).</li>
+              <li>Избери “Add to Home Screen”.</li>
+            </ol>
+          </div>
         </div>
 
-        <div class="space-y-4">
-            
-            <div class="relative group">
-                <label class="block text-xs font-bold text-themeDark ml-1 mb-1">СУМА ЗА ПЛАЩАНЕ</label>
-                <div class="flex items-center">
-                    <input type="number" id="totalAmount" inputmode="decimal" placeholder="0.00" 
-                           class="custom-input w-full bg-white/80 h-14 pl-4 pr-20 rounded-2xl text-2xl font-bold text-gray-700 outline-none border-2 border-transparent focus:border-amber-300 placeholder-gray-300">
-                    <div class="absolute right-2 h-10 bg-amber-100 rounded-xl flex items-center px-1">
-                        <select id="totalCurrency" class="bg-transparent text-amber-800 font-bold text-sm px-2 outline-none font-comfortaa">
-                            <option value="BGN">BGN</option>
-                            <option value="EUR">EUR</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 ml-1 mb-1">ДАДЕНО (ЛВ)</label>
-                    <input type="number" id="paidBGN" inputmode="decimal" placeholder="0.00" 
-                           class="custom-input w-full bg-white/60 h-14 px-4 rounded-2xl text-xl font-bold text-gray-700 outline-none border border-amber-100 focus:bg-white focus:border-amber-300 placeholder-gray-300">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 ml-1 mb-1">ДАДЕНО (€)</label>
-                    <input type="number" id="paidEUR" inputmode="decimal" placeholder="0.00" 
-                           class="custom-input w-full bg-white/60 h-14 px-4 rounded-2xl text-xl font-bold text-gray-700 outline-none border border-amber-100 focus:bg-white focus:border-amber-300 placeholder-gray-300">
-                </div>
-            </div>
-        </div>
-
-        <div id="errorBox" class="hidden bg-red-50 text-red-600 p-3 rounded-xl border border-red-100 text-center text-sm font-bold animate-pulse">
-            Недостатъчна сума! <span id="shortageAmount" class="block font-normal text-xs mt-1"></span>
-        </div>
-
-        <footer class="text-center pt-2">
-            <p class="text-[10px] text-amber-800/60 font-medium">Фиксиран курс: 1 EUR = 1.95583 BGN</p>
+        <footer class="px-5 py-4 border-t border-white/40 bg-white/25">
+          <div class="text-xs text-slate-700 flex items-center justify-between gap-3">
+            <span class="num">Курс: 1 EUR = 1.95583 BGN</span>
+            <span>© Самуил Казаков</span>
+          </div>
         </footer>
+      </div>
 
-    </main>
+      <!-- Small note -->
+      <p class="mt-3 text-center text-xs text-slate-700/80">
+        Работи в реално време. Инсталиране е възможно при хостване през HTTPS (или localhost).
+      </p>
+    </section>
+  </main>
 
-    <script>
-        // --- CONFIG ---
-        const RATE = 1.95583;
+  <script>
+    (() => {
+      const RATE = 1.95583;
 
-        // --- ELEMENTS ---
-        const totalInput = document.getElementById('totalAmount');
-        const totalCurrency = document.getElementById('totalCurrency');
-        const paidBGN = document.getElementById('paidBGN');
-        const paidEUR = document.getElementById('paidEUR');
-        const changeValue = document.getElementById('changeValue');
-        const changeSymbol = document.getElementById('changeSymbol');
-        const secondaryValue = document.getElementById('secondaryValue');
-        const errorBox = document.getElementById('errorBox');
-        const shortageText = document.getElementById('shortageAmount');
-        const bgContainer = document.getElementById('bg-container');
-        const toggles = document.querySelectorAll('.currency-toggle');
+      // ---------- Helpers ----------
+      const $ = (id) => document.getElementById(id);
 
-        let displayCurrency = 'BGN';
+      function parseMoney(v) {
+        // Accept comma or dot
+        const s = String(v ?? '').trim().replace(/\s+/g, '').replace(',', '.');
+        if (!s) return 0;
+        const n = Number(s);
+        return Number.isFinite(n) ? n : 0;
+      }
 
-        // --- BACKGROUND GENERATOR (Full Screen & Dense) ---
-        function generateBackground() {
-            const symbols = ['€', 'лв'];
-            // Grid logic to ensure coverage but randomization for feel
-            const cols = 8; 
-            const rows = 12;
-            const widthStep = 100 / cols;
-            const heightStep = 100 / rows;
+      function fmt(n) {
+        // Keep stable 2 decimals; avoid -0.00
+        const x = Math.abs(n) < 0.0000001 ? 0 : n;
+        return x.toFixed(2);
+      }
 
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    const el = document.createElement('div');
-                    el.classList.add('bg-symbol');
+      function bgnToEur(bgn) { return bgn / RATE; }
+      function eurToBgn(eur) { return eur * RATE; }
+
+      // ---------- Dynamic background (checkerboard € / лв) ----------
+      function buildBg() {
+        const grid = $("bgGridInner");
+        if (!grid) return;
+
+        const w = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+        const h = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+
+        // Pick grid density for phone friendliness
+        const cols = Math.max(7, Math.min(11, Math.round(w / 55)));
+        const rows = Math.max(10, Math.min(16, Math.round(h / 70)));
+
+        grid.style.setProperty("--cols", cols);
+        grid.style.setProperty("--rows", rows);
+
+        grid.innerHTML = "";
+        let idx = 0;
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const cell = document.createElement("div");
+            cell.className = "bg-cell";
+
+            const sym = document.createElement("div");
+            sym.className = "bg-symbol";
+
+            // Strict alternation (checkerboard)
+            const isEuro = ((r + c) % 2 === 0);
+            sym.textContent = isEuro ? "€" : "лв";
+
+            // Size varies a bit but remains noticeable
+            const base = 18;
+            const jitter = (Math.random() * 12);
+            sym.style.fontSize = (base + jitter) + "px";
+
+            // Per-cell float variables
+            const dx = (Math.random() * 18 + 6) * (Math.random() < 0.5 ? -1 : 1);
+            const dy = (Math.random() * 18 + 6) * (Math.random() < 0.5 ? -1 : 1);
+            const rot = (Math.random() * 10 + 3) * (Math.random() < 0.5 ? -1 : 1);
+            const sc  = (Math.random() * 0.10 + 0.04); // scale amplitude
+            const dur = (Math.random() * 7 + 7); // seconds
+
+            sym.style.setProperty("--dx", dx + "px");
+            sym.style.setProperty("--dy", dy + "px");
+            sym.style.setProperty("--rot", rot + "deg");
+            sym.style.setProperty("--sc", sc);
+            sym.style.setProperty("--dur", dur + "s");
+            sym.style.animationDelay = (-Math.random() * dur) + "s";
+
+            // Slightly vary opacity but keep “доста забележими”
+            const op = 0.34 + Math.random() * 0.18;
+            sym.style.color = `rgba(107,114,128,${op.toFixed(3)})`;
+
+            cell.appendChild(sym);
+            grid.appendChild(cell);
+            idx++;
+          }
+        }
+      }
+
+      // ---------- Icon generation (canvas) + Manifest + SW (Blob) ----------
+      function makeIconPng(size, textVariant) {
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+
+        // Background tile (light yellow)
+        ctx.fillStyle = "#FFF0A8";
+        roundRect(ctx, 0, 0, size, size, Math.round(size * 0.22), true, false);
+
+        // Subtle border
+        ctx.strokeStyle = "rgba(255,255,255,0.7)";
+        ctx.lineWidth = Math.max(2, Math.round(size * 0.02));
+        roundRect(ctx, ctx.lineWidth/2, ctx.lineWidth/2, size-ctx.lineWidth, size-ctx.lineWidth, Math.round(size * 0.22), false, true);
+
+        // Text
+        ctx.fillStyle = "#6B7280";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        // Try to use Comfortaa (will fallback if not loaded yet)
+        const main = (textVariant === "name") ? "DualPay" : "€ ⇄ лв";
+        const fontSize = (textVariant === "name") ? Math.round(size * 0.18) : Math.round(size * 0.22);
+        ctx.font = `700 ${fontSize}px Comfortaa, system-ui, sans-serif`;
+
+        // Shadow
+        ctx.shadowColor = "rgba(0,0,0,0.10)";
+        ctx.shadowBlur = Math.round(size * 0.03);
+        ctx.shadowOffsetY = Math.round(size * 0.02);
+
+        ctx.fillText(main, size/2, size/2);
+
+        return canvas.toDataURL("image/png");
+      }
+
+      function makeSvgIconData() {
+        // “Dynamic” in the sense that it is generated at runtime and embedded
+        const svg =
+`<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#000" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <rect x="22" y="22" width="468" height="468" rx="112" fill="#FFF0A8" stroke="rgba(255,255,255,0.75)" stroke-width="10" filter="url(#s)"/>
+  <text x="256" y="270" text-anchor="middle" font-family="Comfortaa, system-ui, sans-serif" font-size="92" font-weight="700" fill="#6B7280">€ ⇄ лв</text>
+</svg>`;
+        return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+      }
+
+      function roundRect(ctx, x, y, w, h, r, fill, stroke) {
+        const rr = Math.min(r, w/2, h/2);
+        ctx.beginPath();
+        ctx.moveTo(x + rr, y);
+        ctx.arcTo(x + w, y, x + w, y + h, rr);
+        ctx.arcTo(x + w, y + h, x, y + h, rr);
+        ctx.arcTo(x, y + h, x, y, rr);
+        ctx.arcTo(x, y, x + w, y, rr);
+        ctx.closePath();
+        if (fill) ctx.fill();
+        if (stroke) ctx.stroke();
+      }
+
+      function setupPwaAssets() {
+        // Favicons / Apple touch
+        const icon64 = makeIconPng(64, "swap");
+        $("favicon").href = icon64;
+        $("appleTouch").href = makeIconPng(180, "swap");
+
+        const icon192 = makeIconPng(192, "swap");
+        const icon512 = makeIconPng(512, "swap");
+        const svgIcon  = makeSvgIconData();
+
+        // Web Manifest (Blob)
+        const manifest = {
+          name: "DualPay — Ресто BGN/EUR",
+          short_name: "DualPay",
+          description: "Калкулатор за ресто в BGN и EUR при фиксиран курс 1.95583.",
+          start_url: ".",
+          scope: ".",
+          display: "standalone",
+          background_color: "#FFF4B8",
+          theme_color: "#6B7280",
+          icons: [
+            { src: icon192, sizes: "192x192", type: "image/png", purpose: "any maskable" },
+            { src: icon512, sizes: "512x512", type: "image/png", purpose: "any maskable" },
+            { src: svgIcon, sizes: "512x512", type: "image/svg+xml", purpose: "any" }
+          ],
+          orientation: "portrait",
+          lang: "bg",
+          id: "./dualpay",
+          categories: ["finance", "utilities"]
+        };
+
+        const manifestBlob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
+        const manifestUrl = URL.createObjectURL(manifestBlob);
+        $("manifestLink").href = manifestUrl;
+
+        // Service Worker (Blob)
+        const swCode = `
+          const CACHE = "dualpay-cache-v1";
+          self.addEventListener("install", (event) => {
+            self.skipWaiting();
+            event.waitUntil(caches.open(CACHE));
+          });
+
+          self.addEventListener("activate", (event) => {
+            event.waitUntil((async () => {
+              const keys = await caches.keys();
+              await Promise.all(keys.map(k => (k === CACHE ? null : caches.delete(k))));
+              await self.clients.claim();
+            })());
+          });
+
+          self.addEventListener("message", (event) => {
+            const data = event.data || {};
+            if (data.type === "CACHE_URLS" && Array.isArray(data.urls)) {
+              event.waitUntil((async () => {
+                const cache = await caches.open(CACHE);
+                for (const url of data.urls) {
+                  try {
+                    const req = new Request(url, { cache: "reload" });
+                    const res = await fetch(req);
+                    if (res && res.ok) await cache.put(req, res.clone());
+                  } catch (_) {}
+                }
+              })());
+            }
+          });
+
+          self.addEventListener("fetch", (event) => {
+            const req = event.request;
+
+            // For navigations: cache-first fallback
+            if (req.mode === "navigate") {
+              event.respondWith((async () => {
+                const cache = await caches.open(CACHE);
+                const cached = await cache.match(req, { ignoreSearch: true });
+                if (cached) return cached;
+
+                try {
+                  const fresh = await fetch(req);
+                  if (fresh && fresh.ok) cache.put(req, fresh.clone());
+                  return fresh;
+                } catch (err) {
+                  // Last resort: try any cached page
+                  const any = await cache.match(self.registration.scope, { ignoreSearch: true });
+                  return any || new Response("Офлайн. Няма кеширана версия.", { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" }});
+                }
+              })());
+              return;
+            }
+
+            // For other requests: network-first with cache fallback
+            event.respondWith((async () => {
+              const cache = await caches.open(CACHE);
+              try {
+                const fresh = await fetch(req);
+                if (fresh && fresh.ok && req.method === "GET") cache.put(req, fresh.clone());
+                return fresh;
+              } catch (e) {
+                const cached = await cache.match(req);
+                return cached || Response.error();
+              }
+            })());
+          });
+        `.trim();
+
+        const swBlob = new Blob([swCode], { type: "text/javascript" });
+        const swUrl = URL.createObjectURL(swBlob);
+
+        // Register SW
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker.register(swUrl, { scope: "./" })
+            .then(() => {
+              // Ask SW to cache the current page URL (best-effort)
+              if (navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({ type: "CACHE_URLS", urls: [location.href] });
+              } else {
+                navigator.serviceWorker.ready.then(reg => {
+                  if (reg.active) reg.active.postMessage({ type: "CACHE_URLS", urls: [location.href] });
+                });
+              }
+            })
+            .catch(() => {/* silent */});
+        }
+      }
+
+      // ---------- Install UX ----------
+      let deferredPrompt = null;
+      const installBtn = $("installBtn");
+      const iosHint = $("iosHint");
+
+      function isIos() {
+        return /iphone|ipad|ipod/i.test(navigator.userAgent);
+      }
+      function isStandalone() {
+        return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+      }
+
+      window.addEventListener("beforeinstallprompt", (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        if (!isStandalone()) installBtn.classList.remove("hidden");
+      });
+
+      installBtn.addEventListener("click", async () => {
+        if (!deferredPrompt) return;
+        installBtn.classList.add("hidden");
+        deferredPrompt.prompt();
+        try { await deferredPrompt.userChoice; } catch (_) {}
+        deferredPrompt = null;
+      });
+
+      // iOS hint (since no beforeinstallprompt)
+      if (isIos() && !isStandalone()) {
+        iosHint.classList.remove("hidden");
+      }
+
+      // ---------- Calculator logic ----------
+      const dueAmount = $("dueAmount");
+      const dueCurrency = $("dueCurrency");
+      const paidBGN = $("paidBGN");
+      const paidEUR = $("paidEUR");
+
+      const errorBox = $("errorBox");
+      const errorText = $("errorText");
+
+      const resultWrap = $("resultWrap");
+      const changePrimary = $("changePrimary");
+      const changeSecondary = $("changeSecondary");
+
+      const showBGN = $("showBGN");
+      const showEUR = $("showEUR");
+
+      let displayCurrency = "BGN";
+
+      function setSegment() {
+        const active = "bg-[color:var(--accent)] text-white shadow-sm";
+        const idle = "bg-transparent text-slate-700 hover:bg-white/60";
+        if (displayCurrency === "BGN") {
+          showBGN.className = `rounded-xl px-3 py-2 text-sm font-montserrat font-semibold trans transition ${active}`;
+          showEUR.className = `rounded-xl px-3 py-2 text-sm font-montserrat font-semibold trans transition ${idle}`;
+        } else {
+          showEUR.className = `rounded-xl px-3 py-2 text-sm font-montserrat font-semibold trans transition ${active}`;
+          showBGN.className = `rounded-xl px-3 py-2 text-sm font-montserrat font-semibold trans transition ${idle}`;
+        }
+      }
+
+      function compute() {
+        const due = parseMoney(dueAmount.value);
+        const cur = dueCurrency.value;
+
+        const paidL = parseMoney(paidBGN.value);
+        const paidE = parseMoney(paidEUR.value);
+
+        const dueBGN = (cur === "EUR") ? eurToBgn(due) : due;
+        const paidTotalBGN = paidL + eurToBgn(paidE);
+
+        // Clear states
+        errorBox.classList.add("hidden");
+        resultWrap.classList.add("opacity-0", "translate-y-2", "pointer-events-none");
+
+        if (dueBGN <= 0 && paidTotalBGN <= 0) {
+          // No meaningful input yet
+          return;
+        }
+
+        if (paidTotalBGN + 1e-9 < dueBGN) {
+          const missingBGN = dueBGN - paidTotalBGN;
+          const missingEUR = bgnToEur(missingBGN);
+          errorText.textContent = `Липсват: ${fmt(missingBGN)} BGN (${fmt(missingEUR)} EUR)`;
+          errorBox.classList.remove("hidden");
+          return;
+        }
+
+        const changeBGN = paidTotalBGN - dueBGN;
+
+        if (displayCurrency === "BGN") {
+          changePrimary.textContent = `${fmt(changeBGN)} BGN`;
+          changeSecondary.textContent = `Еквивалент: ${fmt(bgnToEur(changeBGN))} EUR`;
+        } else {
+          const changeEUR = bgnToEur(changeBGN);
+          changePrimary.textContent = `${fmt(changeEUR)} EUR`;
+          changeSecondary.textContent = `Еквивалент: ${fmt(changeBGN)} BGN`;
+        }
+
+        // Show with smooth transition
+        resultWrap.classList.remove("pointer-events-none");
+        requestAnimationFrame(() => {
+          resultWrap.classList.remove("opacity-0", "translate-y-2");
+        });
+      }
+
+      function bindRealtime(el) {
+        el.addEventListener("input", compute, { passive: true });
+        el.addEventListener("change", compute, { passive: true });
+      }
+
+      showBGN.addEventListener("click", () => { displayCurrency = "BGN"; setSegment(); compute(); });
+      showEUR.addEventListener("click", () => { displayCurrency = "EUR"; setSegment(); compute(); });
+
+      [dueAmount, dueCurrency, paidBGN, paidEUR].forEach(bindRealtime);
+
+      // Initial UI
+      setSegment();
+      buildBg();
+      setupPwaAssets();
+      compute();
+
+      // Rebuild background on resize/orientation change (throttled)
+      let t = null;
+      window.addEventListener("resize", () => {
+        clearTimeout(t);
+        t = setTimeout(buildBg, 120);
+      });
+    })();
+  </script>
+</body>
+</html>
